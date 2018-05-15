@@ -1,0 +1,127 @@
+chage命令的语法格式:
+ -l  用户          //查看账户信息
+[root@10 ~]# chage -l lisi
+
+chage -E 2015-05-15 lisi  #将lisi账户设置失效时间
+chage -l lisi             #查看是否成功
+
+
+chage -d    0   用户            # 强制修改用户密码
+ [另一台机器]：  ssh lisi@201.1.2.200
+更改用户 lisi 的密码 。
+为 lisi 更改 STRESS 密码。
+（当前）UNIX 密码：
+
+（前提是在没创建用户的前提下先改文件在创用户才有效果）    
+/etc/login.defs  #查看用户账户密码的默认有效期  
+PASS_MAX_DAYS    99999                          //密码最长有效期
+PASS_MIN_DAYS    0                                 //密码最短有效期
+PASS_MIN_LEN    5                                  //密码最短长度
+PASS_WARN_AGE    7                             //密码过期前几天提示警告信息
+UID_MIN                  1000                      //UID最小值
+UID_MAX                 60000                   //UID最大值
+
+可以使用 chage --help 帮助
+
+
+ passwd   -l    用户          #锁定用户的密码
+
+ passwd -S      用户          #验证是否成功 如果用户已无法登录，说明锁定生效
+
+passwd -u       用户           #解锁用户的密码
+
+修改Linux系统默认显示登陆信息
+    /etc/issue
+
+chattr +i   文件名                      //锁定文件（无法修改、删除等）
+chattr -i    文件名                    //解锁文件
+chattr +a  文件名                   //锁定后文件仅可追加
+chattr -a  文件名                  //解锁文件
+lsattr       文件名                 //查看文件特殊属性 （目录无效 只能文件）
+
+
+whoami  #查看当前登陆用户
+
+su - 用户 -c "mkdir /home/tom/test"  #在不登陆用户的情况下执行命令
+[root@10 ~]# su - lisi
+[lisi@10 ~]$ ll
+总用量 0
+drwxrwxr-x. 2 lisi lisi 6 5月  14 02:10 test1
+
+修改/etc/sudoers
+root    ALL=(ALL)       ALL
+lisi       ALL=(root)      NOPASSWD: /usr/sbin/useradd,/usr/bin/passwd,!/usr/bin/passwd root, /usr/sbin/user*
+//授权lisi以root身份执行命令     !  取反操作:Wq能修改root用户的密码
+ su   - 普通用户                         #切换到普通用户进行测试
+sudo  useradd  用户                #普通用户加sudo可以添加用户
+which #可以查看一个命名由那个解释器
+
+Defaults  logfile="/var/log/sudo"  
+[root@svr5 ~]# tail /var/log/sudo         #跟踪sudo执行操作
+
+
+提高SSH服务安全：
+
+vim /etc/ssh/sshd_config
+Port 22                                                         //可以改变端口号
+Protocol 2                                                   //去掉SSH协议V1 用SSH协议V2
+#AddressFamily any
+ListenAddress 201.1.2.200                           // 监控的IP号（本机）
+PermitRootLogin no                                  //禁止root用户登录
+PermitEmptyPasswords no                      //禁止密码为空的用户登录
+MaxAuthTries  3                                      //每连接最多认证次数
+AllowUsers lisi   zhangsan   wangwu@192.168.4.0/24      //定义账户白名单
+添加AllowUsers策略，仅允许用户zengye、john、useradm，其中useradm只能从网段192.168.4.0/24登录。
+
+      当端口号修改后 远程访问的时候要加 -p 
+            ssh -X root@  IP   -p  端口号
+
+！！注意在/etc/ssh/sshd_config中   将此行yes改成no  PasswordAuthentication no   才能以下操作                         
+ssh-keygen                                              //创建密钥对
+cd .ssh/                                                  //进入相对目录
+ssh-copy-id root@目标IP                     //将自己的公钥部署到服务器
+[测试机]ssh -X root@目标IP                //免交互直接登入
+
+SELinux安全防护:
+以ftp共享软件为例说明Selinux防护
+装包 :    yum -y insstall vsftpd
+
+配置： vim /etc/vsftpd/vsftpd.conf
+anonymous_enable=YES                                        //开启匿名访问
+write_enable=YES
+anon_upload_enable=YES                                   //允许上传文件
+anon_mkdir_write_enable=YES                          //允许上传目录
+
+起服务： systemctl   start vsftpd
+
+随便找个目录归档打包，然后移动到/var/ftp/  （默认Vsftpd共享目录为/var/ftp/）
+  列：tar –czf  /var/ftp/log1.tar  /var/log
+          mv log1.tar /var/ftp/
+然后切换到默认共享路径下
+cd  /var/ftp/
+查看当前的是上下文标签值   ls-Z （ftp包安装好后在/var/ftp/会有一个默认目录pub)
+标签值要跟默认目录相同才能传输 这也是Selinux防护的一大重点
+列：
+-rw-r--r--. root root unconfined_u:object_r:public_content_t:s0 host.txt
+-rw-r--r--. root root unconfined_u:object_r:admin_home_t:s0 lnmp_soft.tar.gz
+drwxr-xr-x. root root system_u:object_r:public_content_t:s0 pub
+修改命令;
+chcon -t   public_content_t   host.txt
+
+selinux必须要把模式设置为:Permissive
+修改方式1：配置文件永久修改 （重起后生效）
+vim /etc/sysconfig/selinux
+SELINUX=permissive
+方式2： 用命令临时修改
+setenforce 0   
+
+访问端操作： 
+装包： yum -y install ftp
+下载共享目录  :   wget ftp://服务端IP   /共享的目录    
+SElinux 安全防护两大点 ： 1 自身模式限制    2.   上下文标签限制
+
+
+
+
+
+
