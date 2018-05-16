@@ -1,0 +1,156 @@
+加密与解密应用:
+加密算法主要有以下几种分类：
+a) 对称加密算法(AES,DES) 
+加密和解密用同一个用同一个密钥
+
+b) 非对称加密算法（RSA，DSA）
+加密和解密用的是不同的密钥
+
+a) 信息摘要（MD5，SHA256，SHA512）
+基于输入的信息可以生成较短且位数固定的散列值 可以查看输入内容是否改动
+
+1.检查文件的MD5校验和
+先对一个文件进行MD5校验和查看
+md5sum  文件名
+如果复制文件校验和不会变  一旦对文件稍作改动 再次校验就会发现校验和与以前大不相同
+
+2.使用GPG对称加密方式保护文件（支持所有常见加密算法，并且开源免费使用）
+1）装包： yum -y install gnupg2    (版本为gpg (GnuPG) 2.0.22)
+
+ 2）gpg使用对称加密算法加密数据
+   gpg     -c    加密的文件
+ 桌面会弹出来一个窗口 提示输入密码 两次密码必须一样
+加密成功后的文会自动生成一个后缀为 .gpg的加密文件 传输的时候要传输加密文件
+列如：（file2.txt.gpg）
+	scp  file2.txt.gpg  root@目标IP:/储存的目录
+
+对方收到加密文件后 必须要解密才能查看里面的内容
+列：gpg   -d  file2.txt.gpg   >    file2.txt             //解密后保存
+	。。。。。。		                             //根据提示输入正确密码
+输入密码解密后就可以查看里面的内容了
+    列：    cat file2.txt
+
+2.使用GPG非对称加密方式保护文件
+非对称加密或解密文件时，用户1生成私钥与公钥，并把公钥发送给用户2
+用户2使用公钥加密数据，并把加密后的数据传用户1，用户1最后使用自己的私钥解密数据
+
+		执行gpg --gen-key操作，根据提示选择并创建密钥
+密钥种类：			//默认算法为RSA
+RSA 密钥长度	：		//接受默认2048位
+密钥的有效期限：		//默认永不过期
+       下面提示根据提示填写信息
+
+2）用户1查看并导出自己的公钥文件（用户的公钥、私钥信息分别保存在pubring.gpg和secring.gpg文件内）
+		 gpg --list-keys                          //查看公钥环
+用gpg命令结合--export选项将其中的公钥文本导出
+		gpg -a --export   UserB   >   /tmp/UserA.pub
+	//--export的作用是导出密钥           -a的作用是导出的密钥存储为ASCII格式
+	UserB 导出的密钥名			/tmp/UserA.pub   导出到那个目录
+
+然后将密钥传给用户2
+	scp  /tmp/UserA.pub 用户2IP号:/对方储存的目录   
+
+用户2接收到公钥信息 并导入发送方的公钥信息 ，以便在加密文件时指定对应的公钥
+ 		 gpg --import /tmp/UserA.pub
+	//tmp/UserA.pub 为用户1导出公钥的目录
+                gpg --list-keys                          //查看公钥环
+然后用户2 写入相应的东西并用导入的公钥进行加密数据然后传送给用户1
+列：       echo "I love you ." > love.txt
+	   gpg -e -r  UserA   love.txt
+无论如何还是使用这把密钥吗？(y/N)y             //确认使用此密钥加密文件
+scp love.txt.gpg  192.168.4.100:/root         //加密的数据传给用户1
+
+	然后用户1用自己的私钥解密文件
+		gpg -d love.txt.gpg > love.txt
+验证了正确的密码后就可以看到用户2写入的内容
+
+
+4.使用GPG的签名机制，检查数据来源的正确性
+使用私钥签名的文件，是可以使用对应的公钥验证签名的
+只要验证成功，则说明这个文件一定是出自对应的私钥签名
+除非私钥被盗，否则一定能证明这个文件来自于某个人
+tar zcf log.tar /var/log                      //建立测试软件包
+ gpg -b log.tar                                //创建分离式数字签名
+scp log.tar* 192.168.4.5:/root        //将签名文件与签名传给UserB
+
+在用户2上验证签名：
+gpg --verify log.tar.sig log.tar
+gpg:于2028年06月07日 星期六 23时23分23秒 CST 创建的签名，使用 RSA，钥匙号 421C9354
+gpg: 完好的签名，来自于“UserA (UserA) <UserA@tarena.com>”
+.. ..
+
+使用AIDE做入侵检测
+Aide通过检查数据文件的权限、时间、大小、哈希值等，校验数据的完整性。
+使用Aide需要在数据没有被破坏前，对数据完成初始化校验，生成校验数据库文件，在被攻击后，可以使用数据库文件，快速定位被人篡改的文件
+
+步骤一：部署AIDE入侵检测系统
+1）装包：    yum -y install aide
+		rpm -qc aide
+2）修改配置文件：vim /etc/aide.conf   （确定对哪些数据进行校验，如何校验数据）
+
+步骤二：初始化数据库，入侵后检测
+入侵前对数据进行校验，生成初始化数据库
+	aide --init
+AIDE database at /var/lib/aide/aide.db.new.gz initialized.
+		//生成校验数据库，数据保存在/var/lib/aide/aide.db.new.gz
+3）备份数据库
+cp /var/lib/aide/aide.db.new.gz   /自定义目录/
+4）入侵后检测：
+ cd /var/lib/aide/
+mv aide.db.new.gz   aide.db.gz
+aide --check                                          //检查哪些数据发生了变化
+
+
+扫描与抓包分析
+使用NMAP扫描来获取指定主机/网段的相关信息
+1）安装软件:      yum -y install nmap
+    nmap  [扫描类型]  [选项]  <扫描目标 ...>                //基本用法
+// -sS，TCP SYN扫描（半开） (网络建立连接有三次握手 1.SYN  2.SYN ACK  3. ACK）只扫描SYN部分
+// -sT，TCP 连接扫描（全开）  扫描所有连接 SYN ACK
+// -sU，UDP扫描
+// -sP，ICMP扫描		
+// -A，目标系统全面分析
+
+检查目标主机所开启的TCP服务
+nmap 目标主机    （open 为开起  close为关闭     Host is up 主机开起）
+21/tcp  open  ftp   （21号端口  tcp协议  ftp服务）
+22/tcp  open  ssh
+25/tcp  open  smtp
+80/tcp  open  http
+
+检查192.168.4.0/24网段内哪些主机开启了FTP、SSH服务
+	nmap -p 21-22 192.168.4.0/24
+
+检查目标主机所开启的UDP服务
+   	 nmap   -sU  svr7.tedu.cn                   //指定-sU扫描UDP
+
+检查192.168.4.0/24网段内哪些主机可以ping通
+    	nmap  -n  -sP  192.168.4.0/24
+
+全面分析目标主机192.168.4.100和192.168.4.5的操作系统信息
+	nmap -A 192.168.4.100,5
+
+使用tcpdump分析FTP访问中的明文交换信息
+启用tcpdump命令行抓包
+装包： yum -y install tcpdump 
+
+
+//监控选项如下：
+// -i，指定监控的网络接口
+// -A，转换为 ACSII 码，以方便阅读
+// -w，将数据包信息保存到指定文件
+// -r，从指定文件读取数据包信息
+//tcpdump的过滤条件：
+// 类型：host、net、port、portrange
+// 方向：src、dst
+// 协议：tcp、udp、ip、wlan、arp、……
+// 多个条件组合：and、or、not
+
+抓取访问主机192.168.4.100的21端口的数据通信 ，并转换为ASCII码格式的易读文本
+	tcpdump -A host 192.168.4.5 and tcp port 21
+
+tcpdump  -A  -w  ftp.cap   host 192.168.4.5  and  tcp  port  21                  //抓包并保存
+tcpdump  -A  -r  ftp.cap | egrep  '(USER|PASS)'    //分析数据包
+
+
+
