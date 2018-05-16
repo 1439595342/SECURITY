@@ -122,7 +122,7 @@ SElinux 安全防护两大点 ： 1 自身模式限制    2.   上下文标签
  cd /var/ftp/
  ls -Zb .  #查看本目录的标签值 然后将不一样的标枪置进行修改
  chcon -t public_content_t /var/ftp/d2.tar.gz   修改标枪置
-
-
+ chcon --reference=/var/ftp/d1.tar.gz /var/ftp/d2.tar.gz
+  restorecon /var/ftp/d2.tar.gz
 
 
