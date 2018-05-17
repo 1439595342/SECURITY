@@ -50,8 +50,9 @@ drwxrwxr-x. 2 lisi lisi 6 5月  14 02:10 test1
 
 修改/etc/sudoers
 root    ALL=(ALL)       ALL
-lisi       ALL=(root)      NOPASSWD: /usr/sbin/useradd,/usr/bin/passwd,!/usr/bin/passwd root, /usr/sbin/user*
-//授权lisi以root身份执行命令     !  取反操作:Wq能修改root用户的密码
+lisi       ALL=(root)      NOPASSWD: /usr/sbin/useradd,/usr/bin/passwd,!/usr/bin/passwd root, /usr/sbin/user*
+%组名       ALL=（root）     /usr/bin/sstemcal ,/bin/* ,!/bin/kill  (记得加逗号隔离)   
+//授权lisi以root身份执行命令    !  取反操作:Wq能修改root用户的密码
  su   - 普通用户                         #切换到普通用户进行测试
 sudo  useradd  用户                #普通用户加sudo可以添加用户
 which #可以查看一个命名由那个解释器
